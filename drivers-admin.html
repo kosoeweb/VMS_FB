@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UT - Driver Management</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <style>
+    body { background-color: #f4f6f9; font-family: sans-serif; }
+    .navbar { background-color: #7b2cbf !important; }
+    .card { border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar navbar-expand-lg navbar-dark mb-4 shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold text-white text-decoration-none d-flex align-items-center" href="#">
+        <img src="logo.png" alt="UT Logo" style="height: 40px; margin-right: 12px; border-radius: 4px;">
+        <div style="line-height: 1.2;">
+          Universal Tractor Co., Ltd.<br>
+          <small style="font-size: 0.75rem; font-weight: 400;">Driver Management Admin</small>
+        </div>
+      </a>
+      <div class="d-flex gap-2">
+        <a href="index.html" class="btn btn-outline-light btn-sm"><i class="bi bi-car-front"></i> Registry</a>
+        <a href="dashboard.html" class="btn btn-outline-light btn-sm"><i class="bi bi-speedometer2"></i> Dashboard</a>
+        <a href="portal.html" class="btn btn-outline-light btn-sm"><i class="bi bi-journal-check"></i> Portal</a>
+        <a href="login.html" class="btn btn-light btn-sm fw-bold" style="color: #7b2cbf;"><i class="bi bi-box-arrow-in-right"></i> Login</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container" style="max-width: 600px;">
+    <div class="card p-4 bg-white">
+      <h4 class="fw-bold mb-3" style="color: #7b2cbf;"><i class="bi bi-person-plus"></i> Create Driver Account</h4>
+      <p class="text-muted small mb-4">Adding a driver here will automatically create their login account and sync their name into the System Settings (Driver list).</p>
+      
+      <form onsubmit="saveDriver(event)">
+        <div class="mb-3">
+          <label class="fw-bold small">Driver Full Name</label>
+          <input type="text" id="dName" class="form-control" placeholder="e.g. U Aung Aung" required>
+        </div>
+        <div class="mb-3">
+          <label class="fw-bold small">Username</label>
+          <input type="text" id="dUser" class="form-control" placeholder="e.g. aungaung" required>
+        </div>
+        <div class="mb-4">
+          <label class="fw-bold small">Password</label>
+          <input type="text" id="dPass" class="form-control" placeholder="e.g. secret123" required>
+        </div>
+        <button type="submit" class="btn w-100 text-white fw-bold py-2" style="background-color: #7b2cbf;" id="btnSave">Save Driver Account</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+  apiKey: "AIzaSyCnQcsv8TekFkOyOPnb3UWZytPq7zBxLfI",
+  authDomain: "my-apps-a87a3.firebaseapp.com",
+  projectId: "my-apps-a87a3",
+  storageBucket: "my-apps-a87a3.firebasestorage.app",
+  messagingSenderId: "880270085984",
+  appId: "1:880270085984:web:94d1895bd28335abaf1805"
+};
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    async function saveDriver(e) {
+      e.preventDefault();
+      let name = document.getElementById('dName').value.trim();
+      let username = document.getElementById('dUser').value.trim();
+      let password = document.getElementById('dPass').value.trim();
+      let btn = document.getElementById('btnSave');
+      
+      btn.disabled = true;
+      btn.innerText = "Saving & Syncing...";
+
+      try {
+        // 1. vms_drivers Collection ထဲသို့ အကောင့်သိမ်းခြင်း
+        await db.collection('vms_drivers').add({
+          name: name,
+          username: username,
+          password: password,
+          created_at: new Date().toISOString()
+        });
+
+        // 2. System Settings (`vms_settings`) ထဲသို့ Driver အမည် အလိုအလျောက် ဝင်စေခြင်း (Auto-Sync)
+        await db.collection('vms_settings').add({
+          category: 'Driver',
+          subcategory: name,
+          created_at: new Date().toISOString()
+        });
+
+        Swal.fire("Success", "Driver account created and synced to System Settings successfully!", "success");
+        document.getElementById('dName').value = '';
+        document.getElementById('dUser').value = '';
+        document.getElementById('dPass').value = '';
+      } catch (err) {
+        Swal.fire("Error", err.message, "error");
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Save Driver Account";
+      }
+    }
+  </script>
+</body>
+</html>
