@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UT - Driver Login</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <style>
+    body { background-color: #f4f6f9; font-family: sans-serif; height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-card { width: 100%; max-width: 400px; border: none; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body>
+
+  <div class="card login-card p-4 bg-white">
+    <div class="text-center mb-4">
+      <img src="logo.png" alt="UT Logo" style="height: 60px; margin-bottom: 15px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.15);">
+      <h4 class="fw-bold" style="color: #7b2cbf;">Universal Tractor Co., Ltd.</h4>
+      <p class="text-muted small">Driver Log Portal Sign In</p>
+    </div>
+    
+    <form onsubmit="handleLogin(event)">
+      <div class="mb-3">
+        <label class="fw-bold small">Username</label>
+        <input type="text" id="loginUser" class="form-control" placeholder="Enter username" required>
+      </div>
+
+      <div class="mb-4">
+        <label class="fw-bold small">Password</label>
+        <div class="input-group">
+          <input type="password" id="loginPass" class="form-control" placeholder="Enter password" required>
+          <button class="btn btn-outline-secondary" type="button" id="togglePassBtn" onclick="togglePassword()">
+            <i class="bi bi-eye" id="toggleIcon"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn w-100 text-white fw-bold py-2" style="background-color: #7b2cbf;" id="btnLogin">Log In</button>
+    </form>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+  apiKey: "AIzaSyCnQcsv8TekFkOyOPnb3UWZytPq7zBxLfI",
+  authDomain: "my-apps-a87a3.firebaseapp.com",
+  projectId: "my-apps-a87a3",
+  storageBucket: "my-apps-a87a3.firebasestorage.app",
+  messagingSenderId: "880270085984",
+  appId: "1:880270085984:web:94d1895bd28335abaf1805"
+};
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // 1. App စဖွင့်ချိန်တွင် Login ဝင်ပြီးသားဖြစ်ပါက portal.html သို့ အလိုအလျောက် ပို့ပေးခြင်း
+    window.onload = () => {
+      let savedDriver = localStorage.getItem('ut_logged_driver');
+      if (savedDriver) {
+        window.location.href = "portal.html";
+      }
+    };
+
+    // 2. Password ပြရန်/ဖျောက်ရန် Toggle Function
+    function togglePassword() {
+      let passInput = document.getElementById('loginPass');
+      let toggleIcon = document.getElementById('toggleIcon');
+      
+      if (passInput.type === "password") {
+        passInput.type = "text";
+        toggleIcon.className = "bi bi-eye-slash";
+      } else {
+        passInput.type = "password";
+        toggleIcon.className = "bi bi-eye";
+      }
+    }
+
+    // 3. Login ဝင်ခြင်း လုပ်ဆောင်ချက်
+    async function handleLogin(e) {
+      e.preventDefault();
+      let u = document.getElementById('loginUser').value.trim();
+      let p = document.getElementById('loginPass').value.trim();
+      let btn = document.getElementById('btnLogin');
+      btn.disabled = true; btn.innerText = "Checking...";
+
+      try {
+        const snap = await db.collection('vms_drivers').where('username', '==', u).where('password', '==', p).get();
+        if (snap.empty) {
+          Swal.fire("Login Failed", "Incorrect username or password.", "error");
+          btn.disabled = false; btn.innerText = "Log In";
+        } else {
+          let driverData = snap.docs[0].data();
+          localStorage.setItem('ut_logged_driver', driverData.name);
+          sessionStorage.setItem('ut_logged_driver', driverData.name);
+          
+          window.location.href = "portal.html";
+        }
+      } catch (err) {
+        Swal.fire("Error", err.message, "error");
+        btn.disabled = false; btn.innerText = "Log In";
+      }
+    }
+  </script>
+</body>
+</html>
