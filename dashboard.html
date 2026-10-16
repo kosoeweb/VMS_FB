@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UT - VMS Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
+  <!-- Firebase SDKs (Firestore Only) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <style>
+    body { background-color: #f4f6f9; font-family: sans-serif; }
+    .navbar { background-color: #7b2cbf !important; }
+    .card { border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .info-card { background: #ffffff; border-left: 5px solid #7b2cbf; }
+    .thumb-img { width: 70px; height: 70px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #eee; transition: 0.2s; }
+    .thumb-img:hover { border-color: #7b2cbf; transform: scale(1.05); }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar navbar-expand-lg navbar-dark mb-4 shadow-sm" id="mainNav">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold text-white text-decoration-none d-flex align-items-center" href="#">
+        <img src="logo.png" alt="UT Logo" style="height: 45px; margin-right: 15px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+        <div style="line-height: 1.2;">
+          Universal Tractor Co., Ltd.<br>
+          <small style="font-size: 0.8rem; font-weight: 400;">Vehicle Management System</small>
+        </div>
+      </a>
+      <div class="d-flex align-items-center">
+        <span id="netStatus" class="badge bg-success me-2"><i class="bi bi-wifi"></i> Live Sync</span>
+        <a href="index.html" class="btn btn-outline-light btn-sm mx-1">Vehicle Registry</a>
+        <a href="dashboard.html" class="btn btn-light btn-sm mx-1 fw-bold" style="color: #7b2cbf;">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid px-4 pb-5">
+    <div class="card p-4 border-top border-4" style="border-color: #7b2cbf !important;">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold mb-0" style="color: #7b2cbf;">Vehicle Analytics Dashboard</h4>
+        <small class="text-muted" id="lastSyncTxt"><i class="bi bi-arrow-repeat"></i> Real-time listening...</small>
+      </div>
+      
+      <div class="row g-2 mb-4 bg-light p-3 rounded border">
+        <div class="col-md-3">
+          <label class="fw-bold text-muted small">Select Vehicle</label>
+          <input list="vehList" id="filterVeh" class="form-control border-primary" placeholder="Plate No." oninput="renderView()" onchange="renderView()">
+          <datalist id="vehList"></datalist>
+        </div>
+        <div class="col-md-3">
+          <label class="fw-bold text-muted small">Filter Activity</label>
+          <select id="filterAct" class="form-select border-primary" onchange="renderView()">
+            <option value="">All Activities</option>
+            <option value="Using">Using</option>
+            <option value="Refilling Fuel">Refilling Fuel</option>
+            <option value="Maintaining">Maintaining</option>
+            <option value="Repairing">Repairing</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="fw-bold text-muted small">Month</label>
+          <select id="filterMonth" class="form-select border-secondary" onchange="renderView()">
+            <option value="">All Months</option>
+            <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+            <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="fw-bold text-muted small">Year</label>
+          <select id="filterYear" class="form-select border-secondary" onchange="renderView()">
+            <option value="">All Years</option>
+            <option value="2024">2024</option><option value="2025">2025</option><option value="2026">2026</option>
+          </select>
+        </div>
+        
+        <!-- Clear Filters နှင့် Export Excel ခလုတ်များ -->
+        <div class="col-md-2 d-flex gap-1 align-self-end">
+          <button class="btn btn-secondary w-50 fw-bold" onclick="clearFilters()" title="Clear Filters"><i class="bi bi-x-circle"></i> Clear</button>
+          <button class="btn btn-success w-50 fw-bold" onclick="exportExcel()">Export</button>
+        </div>
+      </div>
+
+      <div id="filteredDetailView" style="display: none;">
+        
+        <div class="card info-card mb-4 shadow-sm" id="vehInfoCard">
+          <div class="card-body d-flex flex-wrap">
+            <div class="flex-grow-1">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <h3 id="infoPlate" class="fw-bold mb-1" style="color: #7b2cbf;"></h3>
+                  <h6 id="infoName" class="text-secondary fw-bold mb-3"></h6>
+                </div>
+                <div class="d-flex gap-2" id="infoPhotosBox"></div>
+              </div>
+
+              <div class="row g-2 text-dark mt-2 border-top pt-3">
+                <div class="col-md-3"><strong>Type:</strong> <span id="infoType" class="text-secondary"></span></div>
+                <div class="col-md-3"><strong>Model Year:</strong> <span id="infoYear" class="text-secondary"></span></div>
+                <div class="col-md-3"><strong>Engine:</strong> <span id="infoEngine" class="text-secondary"></span></div>
+                <div class="col-md-3"><strong>Status:</strong> <span id="infoStatus" class="badge bg-success"></span></div>
+                
+                <div class="col-md-3"><strong>Initial Reg Date:</strong> <span id="infoReg" class="text-secondary"></span></div>
+                <div class="col-md-3"><strong>Renewal:</strong> <span id="infoRenDate" class="text-danger fw-bold"></span> <span id="infoRenPrd" class="text-muted small"></span></div>
+                <div class="col-md-3"><strong>Initial Value:</strong> <span id="infoVal" class="text-secondary"></span> MMK</div>
+                <div class="col-md-3"><strong>Depreciation:</strong> <span id="infoDepYears" class="text-secondary"></span> Years</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mb-4 g-3">
+          <div class="col-md-4">
+            <div class="p-3 bg-white rounded shadow-sm border-start border-4" style="border-color: #7b2cbf !important;">
+              <h6 class="fw-bold text-muted mb-1">Current Odometer</h6>
+              <h3 class="mb-0 fw-bold" style="color: #7b2cbf;" id="sumCurrentOdo">0 <span class="fs-6 text-muted">KM</span></h3>
+              <small class="text-success fw-bold" id="sumDriven">Driven: 0 KM</small>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="p-3 bg-white rounded shadow-sm border-start border-success border-4">
+              <h6 class="fw-bold text-muted mb-1">Avg Fuel Consumption</h6>
+              <h3 class="mb-0 text-success fw-bold" id="sumFuelEcon">0 <span class="fs-6 text-muted">KM / L</span></h3>
+              <small class="text-muted fw-bold" id="sumFuelCost">Total Fuel Cost: 0 MMK</small>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="p-3 bg-white rounded shadow-sm border-start border-info border-4">
+              <h6 class="fw-bold text-muted mb-1">Est. Current Value</h6>
+              <h3 class="mb-0 text-info fw-bold" id="sumCurVal">0 <span class="fs-6 text-muted">MMK</span></h3>
+              <small class="text-danger fw-bold" id="sumTotalExp">Total Maintenance: 0 MMK</small>
+            </div>
+          </div>
+        </div>
+
+        <h5 class="text-secondary fw-bold mb-3">Vehicle Log Ledger</h5>
+        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+          <table class="table table-hover table-bordered table-sm align-middle text-center" id="reportTable">
+            <thead class="table-dark sticky-top">
+              <tr>
+                <th>Date</th>
+                <th>Driver</th>
+                <th>Activity & Parts</th>
+                <th>Odometer</th>
+                <th>Fuel (L)</th>
+                <th>Cost (MMK)</th>
+                <th>Remark / Vouchers</th>
+              </tr>
+            </thead>
+            <tbody id="reportBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="defaultSummaryView">
+        <h5 class="text-secondary fw-bold mb-3">Select a vehicle from the dropdown above to view its Dashboard.</h5>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCnQcsv8TekFkOyOPnb3UWZytPq7zBxLfI",
+      authDomain: "my-apps-a87a3.firebaseapp.com",
+      projectId: "my-apps-a87a3",
+      storageBucket: "my-apps-a87a3.firebasestorage.app",
+      messagingSenderId: "880270085984",
+      appId: "1:880270085984:web:94d1895bd28335abaf1805"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+      console.warn("Offline persistence info:", err.code);
+    });
+
+    function updateNetBadge() {
+      const el = document.getElementById('netStatus');
+      if (navigator.onLine) {
+        el.className = 'badge bg-success me-2';
+        el.innerHTML = '<i class="bi bi-wifi"></i> Live Sync';
+      } else {
+        el.className = 'badge bg-warning text-dark me-2';
+        el.innerHTML = '<i class="bi bi-wifi-off"></i> Offline Mode';
+      }
+    }
+    window.addEventListener('online', updateNetBadge);
+    window.addEventListener('offline', updateNetBadge);
+    updateNetBadge();
+  </script>
+
+  <script>
+    let vData = [];
+    let lData = [];
+
+    function zoomImg(url) {
+      if (!url) return;
+      Swal.fire({
+        imageUrl: url,
+        imageAlt: 'Image',
+        width: 'auto',
+        showConfirmButton: false,
+        background: 'transparent',
+        backdrop: 'rgba(0,0,0,0.8)'
+      });
+    }
+
+    function parseVouchers(vStr) {
+      if (!vStr) return [];
+      if (Array.isArray(vStr)) return vStr;
+      if (vStr.includes('|||')) return vStr.split('|||');
+      if (vStr.startsWith('data:')) return [vStr];
+      return vStr.split(',');
+    }
+
+    window.onload = function() {
+      db.collection('vms_vehicles').onSnapshot({ includeMetadataChanges: true }, snapshot => {
+        vData = snapshot.docs.map(doc => doc.data());
+        vData.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+        
+        let opts = vData.map(v => `<option value="${v.plate}">${v.plate} - ${v.name}</option>`);
+        document.getElementById('vehList').innerHTML = opts.join('');
+        renderView();
+      }, err => {
+        Swal.fire("Error loading vehicles", err.message, "error");
+      });
+
+      db.collection('vms_vehicle_logs').onSnapshot({ includeMetadataChanges: true }, snapshot => {
+        lData = snapshot.docs.map(doc => {
+          let d = doc.data();
+          d._pending = doc.metadata.hasPendingWrites;
+          return d;
+        });
+        lData.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+
+        let nowStr = new Date().toLocaleTimeString();
+        document.getElementById('lastSyncTxt').innerHTML = `<i class="bi bi-check2-circle text-success"></i> Auto-updated at ${nowStr}`;
+        renderView();
+      }, err => {
+        Swal.fire("Error loading logs", err.message, "error");
+      });
+    };
+
+    // Filter များကို ရှင်းလင်းပေးမည့် Function
+    function clearFilters() {
+      document.getElementById('filterVeh').value = '';
+      document.getElementById('filterAct').value = '';
+      document.getElementById('filterMonth').value = '';
+      document.getElementById('filterYear').value = '';
+      renderView();
+    }
+
+    function renderView() {
+      const fPlate = document.getElementById('filterVeh').value.toUpperCase().trim();
+      const fAct = document.getElementById('filterAct').value;
+      const fMonth = document.getElementById('filterMonth').value;
+      const fYear = document.getElementById('filterYear').value;
+
+      if (fPlate === '') {
+        document.getElementById('defaultSummaryView').style.display = 'block';
+        document.getElementById('filteredDetailView').style.display = 'none';
+      } else {
+        let veh = vData.find(v => (v.plate || '').toUpperCase() === fPlate);
+        if (!veh) return;
+
+        document.getElementById('defaultSummaryView').style.display = 'none';
+        document.getElementById('filteredDetailView').style.display = 'block';
+
+        document.getElementById('infoPlate').innerText = veh.plate;
+        document.getElementById('infoName').innerText = veh.name;
+        document.getElementById('infoType').innerText = veh.type || '-';
+        document.getElementById('infoYear').innerText = veh.model_year || '-';
+        document.getElementById('infoEngine').innerText = veh.engine || '-';
+
+        document.getElementById('infoStatus').innerText = veh.status;
+        document.getElementById('infoStatus').className = veh.status === 'Active' ? 'badge bg-success' : 'badge bg-danger';
+
+        document.getElementById('infoReg').innerText = veh.initial_reg_date || '-';
+        document.getElementById('infoRenDate').innerText = veh.renewal_date || '-';
+        document.getElementById('infoRenPrd').innerText = veh.renewal_period ? `(Every ${veh.renewal_period} yr)` : '';
+        document.getElementById('infoVal').innerText = veh.initial_value ? Number(veh.initial_value).toLocaleString() : '0';
+        document.getElementById('infoDepYears').innerText = veh.depreciation_period || '0';
+
+        let pBox = '';
+        if (veh.photo_front) pBox += `<img src="${veh.photo_front}" class="thumb-img" onclick="zoomImg(this.src)" title="Front">`;
+        if (veh.photo_back) pBox += `<img src="${veh.photo_back}" class="thumb-img" onclick="zoomImg(this.src)" title="Back">`;
+        if (veh.photo_left) pBox += `<img src="${veh.photo_left}" class="thumb-img" onclick="zoomImg(this.src)" title="Left">`;
+        if (veh.photo_right) pBox += `<img src="${veh.photo_right}" class="thumb-img" onclick="zoomImg(this.src)" title="Right">`;
+        document.getElementById('infoPhotosBox').innerHTML = pBox;
+
+        let vLogs = lData.filter(l => (l.plate || '').toUpperCase() === fPlate);
+
+        let initialOdo = Number(veh.initial_odo) || 0;
+        let currentOdo = initialOdo;
+        let totalFuelCost = 0;
+        let totalLiters = 0;
+        let totalMaintCost = 0;
+
+        if (vLogs.length > 0) {
+          let validOdos = vLogs.map(l => Number(l.odometer)).filter(o => !isNaN(o) && o > 0);
+          if (validOdos.length > 0) currentOdo = Math.max(...validOdos);
+        }
+        let totalDriven = currentOdo - initialOdo;
+        if (totalDriven < 0) totalDriven = 0;
+
+        let tbody = '';
+
+        vLogs.forEach(l => {
+          let act = l.activity || '';
+          if (fAct && !act.includes(fAct)) return;
+
+          let dStr = l.date_str || '';
+          let parts = dStr.split('/');
+          let dObj = parts.length === 3 ? new Date(`${parts[2]}-${parts[1]}-${parts[0]}`) : new Date(dStr);
+
+          if (fMonth !== "" && !isNaN(dObj) && (dObj.getMonth() + 1).toString() !== fMonth) return;
+          if (fYear !== "" && !isNaN(dObj) && dObj.getFullYear().toString() !== fYear) return;
+
+          let c = Number(l.cost) || 0;
+          let lit = Number(l.fuel_liters) || 0;
+
+          if (act.includes('Refilling')) { totalFuelCost += c; totalLiters += lit; }
+          if (act.includes('Maintain') || act.includes('Repair')) { totalMaintCost += c; }
+
+          let bColor = act.includes('Refilling') ? 'bg-success' : (act.includes('Repair') ? 'bg-danger' : (act.includes('Maintain') ? 'bg-warning text-dark' : 'bg-primary'));
+          let syncBadge = l._pending ? ` <span class="badge bg-secondary" title="Waiting for internet sync"><i class="bi bi-cloud-arrow-up"></i> Pending</span>` : '';
+          let partsHtml = l.parts ? `<br><small class="text-primary mt-1 d-block"><i class="bi bi-tools"></i> ${l.parts}</small>` : '';
+
+          let vHtml = '';
+          if (l.vouchers) {
+            let vArr = parseVouchers(l.vouchers);
+            vArr.forEach((v, idx) => {
+              vHtml += `<a href="javascript:void(0)" data-img="${v}" onclick="zoomImg(this.dataset.img)" class="badge bg-secondary me-1 mt-1 text-decoration-none"><i class="bi bi-receipt"></i> V-${idx + 1}</a>`;
+            });
+            vHtml = `<div>${vHtml}</div>`;
+          }
+
+          tbody += `<tr>
+            <td class="small text-nowrap">${dStr}</td>
+            <td class="fw-bold small">${l.driver || '-'}</td>
+            <td class="text-start"><span class="badge ${bColor}">${act}</span>${syncBadge}${partsHtml}</td>
+            <td class="fw-bold text-end">${Number(l.odometer).toLocaleString()}</td>
+            <td class="text-success fw-bold text-end">${lit > 0 ? lit + ' L' : '-'}</td>
+            <td class="text-danger text-end">${c > 0 ? c.toLocaleString() : '-'}</td>
+            <td class="text-muted small text-start">${l.remark || '-'}${vHtml}</td>
+          </tr>`;
+        });
+
+        let kmPerLiter = totalLiters > 0 ? (totalDriven / totalLiters).toFixed(2) : 0;
+
+        let initVal = Number(veh.initial_value) || 0;
+        let depYears = Number(veh.depreciation_period) || 0;
+        let currentVal = initVal;
+        let depAmount = 0;
+
+        if (initVal > 0 && depYears > 0) {
+          let startDStr = veh.start_date ? veh.start_date : veh.initial_reg_date;
+          if (startDStr) {
+            let startObj = new Date(startDStr);
+            if (!isNaN(startObj)) {
+              let diffTime = new Date().getTime() - startObj.getTime();
+              let diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
+              if (diffYears > 0) {
+                depAmount = (initVal / depYears) * diffYears;
+                if (depAmount > initVal) depAmount = initVal;
+                currentVal = initVal - depAmount;
+              }
+            }
+          }
+        }
+
+        document.getElementById('sumCurrentOdo').innerHTML = `${currentOdo.toLocaleString()} <span class="fs-6 text-muted">KM</span>`;
+        document.getElementById('sumDriven').innerText = `Driven since reg: ${totalDriven.toLocaleString()} KM`;
+
+        document.getElementById('sumFuelEcon').innerHTML = `${kmPerLiter} <span class="fs-6 text-muted">KM / L</span>`;
+        document.getElementById('sumFuelCost').innerText = `Total Fuel Cost: ${totalFuelCost.toLocaleString()} MMK`;
+
+        document.getElementById('sumCurVal').innerHTML = `${currentVal.toLocaleString(undefined, { maximumFractionDigits: 0 })} <span class="fs-6 text-muted">MMK</span>`;
+        document.getElementById('sumTotalExp').innerText = `Total Maintenance: ${totalMaintCost.toLocaleString()} MMK`;
+
+        document.getElementById('reportBody').innerHTML = tbody === '' ? '<tr><td colspan="7" class="text-center py-4 text-muted">No logs found matching your filters.</td></tr>' : tbody;
+      }
+    }
+
+    function exportExcel() {
+      let fPlate = document.getElementById('filterVeh').value;
+      if (!fPlate) return Swal.fire('Warning', 'Please select a vehicle to export', 'warning');
+      let table = document.getElementById("reportTable");
+      let wb = XLSX.utils.table_to_book(table, { sheet: "Vehicle_Log" });
+      XLSX.writeFile(wb, `Vehicle_Log_${fPlate}.xlsx`);
+    }
+  </script>
+</body>
+</html>
