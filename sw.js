@@ -1,12 +1,19 @@
+// Service Worker - Simple Pass-through (Firestore requests များကို မပိတ်ဆို့ရန်)
 self.addEventListener('install', (e) => {
-  console.log('[Service Worker] Installed');
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (e) => {
+  e.waitUntil(clients.claim());
 });
 
 self.addEventListener('fetch', (e) => {
-  // Offline အလုပ်လုပ်နိုင်ရန်နှင့် PWA Install Prompt ပေါ်လာစေရန် ရည်ရွယ်သည်
+  // Firebase / Firestore API ခေါ်ဆိုမှုများကို Service Worker က လုံးဝမထိန်းချုပ်ဘဲ တိုက်ရိုက်သွားခွင့်ပြုရန်
+  if (e.request.url.includes('firestore.googleapis.com') || e.request.url.includes('firebase')) {
+    return;
+  }
+  
   e.respondWith(
-    caches.match(e.request).then((response) => {
-      return response || fetch(e.request);
-    })
+    fetch(e.request).catch(() => caches.match(e.request))
   );
 });
